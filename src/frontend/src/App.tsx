@@ -47,7 +47,7 @@ function EmployeeAccountLinkScreen() {
     }
     try {
       await employeeLogin.mutateAsync({ loginId, password });
-      toast.success("Account link ho gaya! App khul rahi hai...");
+      toast.success("Account link ho gaya!");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("Login ID not found")) {
@@ -98,7 +98,7 @@ function EmployeeAccountLinkScreen() {
             <div className="relative">
               <Input
                 id="link-password"
-                data-ocid="employee.login.input"
+                data-ocid="employee.password.input"
                 type={showPass ? "text" : "password"}
                 placeholder="Password likhein"
                 value={password}
@@ -156,10 +156,11 @@ export default function App() {
   const { data: isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const { data: role, isLoading: isRoleLoading } = useCallerRole();
 
-  const isLoading =
-    isInitializing ||
-    isActorLoading ||
-    (!!identity && (isAdminLoading || isRoleLoading));
+  // Show loader while initializing so stored session is checked
+  // before showing LoginPage -- prevents flash of login on reload
+  if (isInitializing) {
+    return <AppLoader />;
+  }
 
   if (!identity) {
     return (
@@ -169,6 +170,8 @@ export default function App() {
       </>
     );
   }
+
+  const isLoading = isActorLoading || isAdminLoading || isRoleLoading;
 
   if (isLoading) {
     return <AppLoader />;
@@ -183,7 +186,6 @@ export default function App() {
     );
   }
 
-  // Guest = employee who hasn't linked credentials yet
   if (!role || role === UserRole.guest) {
     return (
       <>
@@ -220,10 +222,6 @@ function EmployeeActiveChecker() {
   });
 
   if (isLoading) return <AppLoader />;
-
-  if (isActive === false) {
-    return <PendingApproval />;
-  }
-
+  if (isActive === false) return <PendingApproval />;
   return <EmployeeChat />;
 }

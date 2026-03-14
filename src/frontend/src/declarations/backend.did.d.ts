@@ -10,6 +10,16 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface CallSignal {
+  'status' : CallStatus,
+  'offer' : [] | [string],
+  'answer' : [] | [string],
+  'iceCandidates' : Array<string>,
+}
+export type CallStatus = { 'idle' : null } |
+  { 'calling' : null } |
+  { 'ended' : null } |
+  { 'connected' : null };
 export interface ExtendedEmployeeProfile {
   'name' : string,
   'isActive' : boolean,
@@ -26,28 +36,39 @@ export interface Message {
 }
 export type MessageRole = { 'admin' : null } |
   { 'employee' : null };
+export type Result = { 'ok' : null } |
+  { 'err' : string };
 export interface UserProfile { 'name' : string, 'email' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addIceCandidateAdmin' : ActorMethod<[bigint, string], undefined>,
+  'addIceCandidateEmployee' : ActorMethod<[string], undefined>,
   'adminCreateEmployee' : ActorMethod<
     [string, string, string, string, string, string],
     bigint
   >,
+  'answerVideoCall' : ActorMethod<[string], Result>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'employeeInitiateVideoCall' : ActorMethod<[string], Result>,
   'employeeLoginWithCredentials' : ActorMethod<
     [string, string],
     ExtendedEmployeeProfile
   >,
+  'endCallAdmin' : ActorMethod<[bigint], undefined>,
+  'endCallEmployee' : ActorMethod<[], undefined>,
   'getAllEmployees' : ActorMethod<[], Array<[bigint, ExtendedEmployeeProfile]>>,
+  'getCallSignalForAdmin' : ActorMethod<[bigint], [] | [CallSignal]>,
+  'getCallSignalForEmployee' : ActorMethod<[], [] | [CallSignal]>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getEmployeeCredentials' : ActorMethod<[bigint], [string, string]>,
   'getMessagesForAdmin' : ActorMethod<[bigint], Array<Message>>,
   'getMessagesForEmployee' : ActorMethod<[], Array<Message>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'initiateVideoCall' : ActorMethod<[bigint, string], Result>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'sendMessage' : ActorMethod<[bigint, string], undefined>,

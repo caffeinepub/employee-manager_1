@@ -2,7 +2,6 @@ import Time "mo:core/Time";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
-import Text "mo:core/Text";
 import Array "mo:core/Array";
 import Iter "mo:core/Iter";
 import Option "mo:core/Option";
@@ -11,8 +10,9 @@ import Principal "mo:core/Principal";
 
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
+import Migration "migration";
 
-
+(with migration = Migration.run)
 actor {
   public type EmployeeProfile = {
     name : Text;
@@ -54,14 +54,34 @@ actor {
     email : Text;
   };
 
-  var employeeIdCounter = 0;
+  public type CallStatus = {
+    #idle;
+    #calling;
+    #connected;
+    #ended;
+  };
 
+  public type CallSignal = {
+    offer : ?Text;
+    answer : ?Text;
+    iceCandidates : [Text];
+    status : CallStatus;
+  };
+
+  public type Result = {
+    #ok;
+    #err : Text;
+  };
+
+  var employeeIdCounter = 0;
   let employeeProfiles = Map.empty<Nat, EmployeeProfile>();
   let employeeCredentials = Map.empty<Nat, EmployeeCredentials>();
   let employeeMessages = Map.empty<Nat, List.List<Message>>();
   let loginIdIndex = Map.empty<Text, Nat>();
   let principalToEmployeeId = Map.empty<Principal, Nat>();
   let userProfiles = Map.empty<Principal, UserProfile>();
+  let videoSignals = Map.empty<Nat, CallSignal>();
+  let adminVideoSignals = Map.empty<Nat, CallSignal>();
   let accessControlState = AccessControl.initState();
 
   include MixinAuthorization(accessControlState);
@@ -298,6 +318,308 @@ actor {
       Runtime.trap("Unauthorized: Can only view your own profile");
     };
     userProfiles.get(user);
+  };
+
+  public shared ({ caller }) func initiateVideoCall(toEmployeeId : Nat, sdpOffer : Text) : async Result {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admin can initiate calls");
+    };
+
+    switch (employeeProfiles.get(toEmployeeId)) {
+      case (null) { return #err("Employee not found") };
+      case (?profile) {
+        if (not profile.isActive) { return #err("Employee is not active") };
+      };
+    };
+
+    let currentSignal = switch (videoSignals.get(toEmployeeId)) {
+      case (null) { null };
+      case (?signal) { ?signal };
+    };
+    switch (currentSignal) {
+      case (?signal) {
+        if (signal.status != #idle and signal.status != #ended) {
+          return #err("Employee already has a call");
+        };
+      };
+      case (null) {};
+    };
+
+    let defaultSignal : CallSignal = {
+      offer = null;
+      answer = null;
+      iceCandidates = [];
+      status = #idle;
+    };
+
+    let updatedSignal : CallSignal = {
+      (switch (videoSignals.get(toEmployeeId)) { case (null) { defaultSignal }; case (?signal) { signal } }) with
+      offer = ?sdpOffer;
+      status = #calling;
+      iceCandidates = [];
+    };
+    videoSignals.add(toEmployeeId, updatedSignal);
+
+    let adminSignal : CallSignal = {
+      offer = ?sdpOffer;
+      answer = null;
+      iceCandidates = [];
+      status = #calling;
+    };
+    adminVideoSignals.add(toEmployeeId, adminSignal);
+
+    #ok;
+  };
+
+  public shared ({ caller }) func employeeInitiateVideoCall(sdpOffer : Text) : async Result {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated employees can initiate calls");
+    };
+
+    if (not isCallerActiveEmployee(caller)) {
+      Runtime.trap("Unauthorized: Only active employees can initiate calls");
+    };
+
+    let employeeId = switch (principalToEmployeeId.get(caller)) {
+      case (null) { Runtime.trap("Employee principal not linked") };
+      case (?id) { id };
+    };
+
+    let currentSignal = switch (adminVideoSignals.get(employeeId)) {
+      case (null) { null };
+      case (?signal) { ?signal };
+    };
+    switch (currentSignal) {
+      case (?signal) {
+        if (signal.status != #idle and signal.status != #ended) {
+          return #err("Existing call in progress - cannot start new");
+        };
+      };
+      case (null) {};
+    };
+
+    let defaultSignal : CallSignal = {
+      offer = null;
+      answer = null;
+      iceCandidates = [];
+      status = #idle;
+    };
+
+    let updatedSignal : CallSignal = {
+      (switch (adminVideoSignals.get(employeeId)) { case (null) { defaultSignal }; case (?signal) { signal } }) with
+      offer = ?sdpOffer;
+      status = #calling;
+      iceCandidates = [];
+    };
+    adminVideoSignals.add(employeeId, updatedSignal);
+
+    let employeeSignal : CallSignal = {
+      offer = ?sdpOffer;
+      answer = null;
+      iceCandidates = [];
+      status = #calling;
+    };
+    videoSignals.add(employeeId, employeeSignal);
+
+    #ok;
+  };
+
+  public shared ({ caller }) func answerVideoCall(sdpAnswer : Text) : async Result {
+    let maybeEmployeeId = principalToEmployeeId.get(caller);
+    
+    switch (maybeEmployeeId) {
+      case (?employeeId) {
+        if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+          Runtime.trap("Unauthorized: Only authenticated employees can answer calls");
+        };
+        
+        if (not isCallerActiveEmployee(caller)) {
+          Runtime.trap("Unauthorized: Only active employees can answer calls");
+        };
+        
+        return handleEmployeeCallAnswer(employeeId, sdpAnswer);
+      };
+      case (null) {
+        if (AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Admin cannot answer calls - employees answer admin-initiated calls");
+        };
+        Runtime.trap("Unauthorized: Unknown caller cannot answer calls");
+      };
+    };
+  };
+
+  func handleEmployeeCallAnswer(employeeId : Nat, sdpAnswer : Text) : Result {
+    let signal = switch (videoSignals.get(employeeId)) {
+      case (null) { return #err("No active call") };
+      case (?callSignal) { callSignal };
+    };
+
+    switch (signal.status) {
+      case (#calling) {
+        let updatedSignal : CallSignal = { signal with answer = ?sdpAnswer; status = #connected };
+        videoSignals.add(employeeId, updatedSignal);
+
+        let adminSignal = {
+          offer = signal.offer;
+          answer = ?sdpAnswer;
+          iceCandidates = signal.iceCandidates;
+          status = #connected;
+        };
+        adminVideoSignals.add(employeeId, adminSignal);
+        #ok;
+      };
+      case (#idle) { #err("Cannot answer call with status idle") };
+      case (#connected) { #err("Call already connected") };
+      case (#ended) { #err("Cannot answer call with status ended") };
+    };
+  };
+
+  public shared ({ caller }) func addIceCandidateAdmin(toEmployeeId : Nat, candidate : Text) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admin can add ICE candidates");
+    };
+
+    switch (videoSignals.get(toEmployeeId)) {
+      case (null) { Runtime.trap("Call not found for employee") };
+      case (?signal) {
+        let updatedCandidatesList = signal.iceCandidates.concat([candidate]);
+        let updatedSignal : CallSignal = { signal with iceCandidates = updatedCandidatesList };
+        videoSignals.add(toEmployeeId, updatedSignal);
+
+        let adminSignal : CallSignal = {
+          offer = signal.offer;
+          answer = signal.answer;
+          iceCandidates = updatedCandidatesList;
+          status = signal.status;
+        };
+        adminVideoSignals.add(toEmployeeId, adminSignal);
+      };
+    };
+  };
+
+  public shared ({ caller }) func addIceCandidateEmployee(candidate : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated employees can add ICE candidates");
+    };
+
+    if (not isCallerActiveEmployee(caller)) {
+      Runtime.trap("Unauthorized: Only active employees can add ICE candidates");
+    };
+
+    let employeeId = switch (principalToEmployeeId.get(caller)) {
+      case (null) { Runtime.trap("Employee principal not linked") };
+      case (?id) { id };
+    };
+
+    switch (adminVideoSignals.get(employeeId)) {
+      case (null) { Runtime.trap("Call not found") };
+      case (?signal) {
+        let updatedCandidatesList = signal.iceCandidates.concat([candidate]);
+        let updatedSignal : CallSignal = { signal with iceCandidates = updatedCandidatesList };
+        adminVideoSignals.add(employeeId, updatedSignal);
+
+        let employeeSignal : CallSignal = {
+          offer = signal.offer;
+          answer = signal.answer;
+          iceCandidates = updatedCandidatesList;
+          status = signal.status;
+        };
+        videoSignals.add(employeeId, employeeSignal);
+      };
+    };
+  };
+
+  public query ({ caller }) func getCallSignalForAdmin(employeeId : Nat) : async ?CallSignal {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admin can get call signals");
+    };
+    adminVideoSignals.get(employeeId);
+  };
+
+  public query ({ caller }) func getCallSignalForEmployee() : async ?CallSignal {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated employees can get call signals");
+    };
+
+    if (not isCallerActiveEmployee(caller)) {
+      Runtime.trap("Unauthorized: Only active employees can get call signals");
+    };
+
+    switch (principalToEmployeeId.get(caller)) {
+      case (null) { Runtime.trap("Employee principal not linked") };
+      case (?employeeId) { videoSignals.get(employeeId) };
+    };
+  };
+
+  public shared ({ caller }) func endCallAdmin(employeeId : Nat) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admin can end call");
+    };
+
+    switch (videoSignals.get(employeeId)) {
+      case (null) { Runtime.trap("No active call to end for employee") };
+      case (?signal) {
+        if (signal.status != #calling and signal.status != #connected) {
+          Runtime.trap("Cannot end call in current state");
+        };
+
+        let endedSignal : CallSignal = {
+          offer = null;
+          answer = null;
+          iceCandidates = [];
+          status = #ended;
+        };
+
+        videoSignals.add(employeeId, endedSignal);
+        let adminSignal : CallSignal = {
+          offer = null;
+          answer = null;
+          iceCandidates = [];
+          status = #ended;
+        };
+        adminVideoSignals.add(employeeId, adminSignal);
+      };
+    };
+  };
+
+  public shared ({ caller }) func endCallEmployee() : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authorized employees can end calls");
+    };
+
+    if (not isCallerActiveEmployee(caller)) {
+      Runtime.trap("Unauthorized: Only active employees can end calls");
+    };
+
+    let employeeId = switch (principalToEmployeeId.get(caller)) {
+      case (null) { Runtime.trap("Employee principal not linked") };
+      case (?id) { id };
+    };
+
+    switch (adminVideoSignals.get(employeeId)) {
+      case (null) { Runtime.trap("Cannot end call that does not exist") };
+      case (?signal) {
+        if (signal.status != #calling and signal.status != #connected) {
+          Runtime.trap("Cannot end call in current state");
+        };
+
+        let endedSignal : CallSignal = {
+          offer = null;
+          answer = null;
+          iceCandidates = [];
+          status = #ended;
+        };
+
+        adminVideoSignals.add(employeeId, endedSignal);
+        let employeeSignal : CallSignal = {
+          offer = null;
+          answer = null;
+          iceCandidates = [];
+          status = #ended;
+        };
+        videoSignals.add(employeeId, employeeSignal);
+      };
+    };
   };
 
   func isCallerActiveEmployee(caller : Principal) : Bool {

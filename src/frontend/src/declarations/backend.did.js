@@ -8,6 +8,7 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
+export const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
@@ -21,6 +22,18 @@ export const ExtendedEmployeeProfile = IDL.Record({
   'phone' : IDL.Text,
   'department' : IDL.Text,
   'linkedPrincipal' : IDL.Opt(IDL.Principal),
+});
+export const CallStatus = IDL.Variant({
+  'idle' : IDL.Null,
+  'calling' : IDL.Null,
+  'ended' : IDL.Null,
+  'connected' : IDL.Null,
+});
+export const CallSignal = IDL.Record({
+  'status' : CallStatus,
+  'offer' : IDL.Opt(IDL.Text),
+  'answer' : IDL.Opt(IDL.Text),
+  'iceCandidates' : IDL.Vec(IDL.Text),
 });
 export const UserProfile = IDL.Record({
   'name' : IDL.Text,
@@ -38,22 +51,34 @@ export const Message = IDL.Record({
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'addIceCandidateAdmin' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+  'addIceCandidateEmployee' : IDL.Func([IDL.Text], [], []),
   'adminCreateEmployee' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
       [IDL.Nat],
       [],
     ),
+  'answerVideoCall' : IDL.Func([IDL.Text], [Result], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'employeeInitiateVideoCall' : IDL.Func([IDL.Text], [Result], []),
   'employeeLoginWithCredentials' : IDL.Func(
       [IDL.Text, IDL.Text],
       [ExtendedEmployeeProfile],
       [],
     ),
+  'endCallAdmin' : IDL.Func([IDL.Nat], [], []),
+  'endCallEmployee' : IDL.Func([], [], []),
   'getAllEmployees' : IDL.Func(
       [],
       [IDL.Vec(IDL.Tuple(IDL.Nat, ExtendedEmployeeProfile))],
       ['query'],
     ),
+  'getCallSignalForAdmin' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Opt(CallSignal)],
+      ['query'],
+    ),
+  'getCallSignalForEmployee' : IDL.Func([], [IDL.Opt(CallSignal)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getEmployeeCredentials' : IDL.Func(
@@ -68,6 +93,7 @@ export const idlService = IDL.Service({
       [IDL.Opt(UserProfile)],
       ['query'],
     ),
+  'initiateVideoCall' : IDL.Func([IDL.Nat, IDL.Text], [Result], []),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'sendMessage' : IDL.Func([IDL.Nat, IDL.Text], [], []),
@@ -78,6 +104,7 @@ export const idlService = IDL.Service({
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
+  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
@@ -92,6 +119,18 @@ export const idlFactory = ({ IDL }) => {
     'department' : IDL.Text,
     'linkedPrincipal' : IDL.Opt(IDL.Principal),
   });
+  const CallStatus = IDL.Variant({
+    'idle' : IDL.Null,
+    'calling' : IDL.Null,
+    'ended' : IDL.Null,
+    'connected' : IDL.Null,
+  });
+  const CallSignal = IDL.Record({
+    'status' : CallStatus,
+    'offer' : IDL.Opt(IDL.Text),
+    'answer' : IDL.Opt(IDL.Text),
+    'iceCandidates' : IDL.Vec(IDL.Text),
+  });
   const UserProfile = IDL.Record({ 'name' : IDL.Text, 'email' : IDL.Text });
   const MessageRole = IDL.Variant({
     'admin' : IDL.Null,
@@ -105,22 +144,34 @@ export const idlFactory = ({ IDL }) => {
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'addIceCandidateAdmin' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+    'addIceCandidateEmployee' : IDL.Func([IDL.Text], [], []),
     'adminCreateEmployee' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
         [IDL.Nat],
         [],
       ),
+    'answerVideoCall' : IDL.Func([IDL.Text], [Result], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'employeeInitiateVideoCall' : IDL.Func([IDL.Text], [Result], []),
     'employeeLoginWithCredentials' : IDL.Func(
         [IDL.Text, IDL.Text],
         [ExtendedEmployeeProfile],
         [],
       ),
+    'endCallAdmin' : IDL.Func([IDL.Nat], [], []),
+    'endCallEmployee' : IDL.Func([], [], []),
     'getAllEmployees' : IDL.Func(
         [],
         [IDL.Vec(IDL.Tuple(IDL.Nat, ExtendedEmployeeProfile))],
         ['query'],
       ),
+    'getCallSignalForAdmin' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Opt(CallSignal)],
+        ['query'],
+      ),
+    'getCallSignalForEmployee' : IDL.Func([], [IDL.Opt(CallSignal)], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getEmployeeCredentials' : IDL.Func(
@@ -135,6 +186,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
+    'initiateVideoCall' : IDL.Func([IDL.Nat, IDL.Text], [Result], []),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'sendMessage' : IDL.Func([IDL.Nat, IDL.Text], [], []),

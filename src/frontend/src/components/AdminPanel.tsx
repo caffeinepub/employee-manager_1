@@ -26,6 +26,7 @@ import {
   Shield,
   UserPlus,
   Users,
+  Video,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
@@ -41,6 +42,8 @@ import {
   useSendMessageToEmployee,
   useSetEmployeeActiveStatus,
 } from "../hooks/useQueries";
+import { useVideoCall } from "../hooks/useVideoCall";
+import VideoCall from "./VideoCall";
 
 const AVATAR_COLORS = [
   "oklch(0.55 0.18 250)",
@@ -682,6 +685,8 @@ function AdminChat({
   const bottomRef = useRef<HTMLDivElement>(null);
   const msgCount = messages?.length ?? 0;
 
+  const vc = useVideoCall({ role: "admin", employeeId });
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on message count change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -713,6 +718,16 @@ function AdminChat({
     }
   };
 
+  const handleVideoCall = async () => {
+    try {
+      await vc.startCall(employeeId, profile.name);
+    } catch {
+      toast.error(
+        "Video call shuru nahi ho saki. Camera/mic access check karein.",
+      );
+    }
+  };
+
   const initials = profile.name
     .split(" ")
     .map((w: string) => w[0])
@@ -723,6 +738,21 @@ function AdminChat({
 
   return (
     <div className="flex-1 flex flex-col h-full">
+      {/* Video Call Overlay */}
+      <VideoCall
+        callState={vc.callState}
+        callerName={vc.callerName}
+        isMuted={vc.isMuted}
+        isCameraOff={vc.isCameraOff}
+        localVideoRef={vc.localVideoRef}
+        remoteVideoRef={vc.remoteVideoRef}
+        onMuteToggle={vc.toggleMute}
+        onCameraToggle={vc.toggleCamera}
+        onEndCall={vc.endCall}
+        onAccept={vc.handleAccept}
+        onDecline={vc.declineCall}
+      />
+
       <div className="wa-header px-4 py-2.5 flex items-center gap-3 flex-shrink-0">
         <button
           type="button"
@@ -761,7 +791,7 @@ function AdminChat({
         >
           {profile.isActive ? "● Active" : "● Pending"}
         </span>
-        {/* Call button in chat header */}
+        {/* Phone call button */}
         <button
           type="button"
           data-ocid="adminchat.secondary_button"
@@ -770,6 +800,16 @@ function AdminChat({
           className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-white/20 text-white"
         >
           <Phone className="w-4 h-4" />
+        </button>
+        {/* Video call button */}
+        <button
+          type="button"
+          data-ocid="adminchat.video_button"
+          title="Video Call karein"
+          onClick={handleVideoCall}
+          className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-white/20 text-white"
+        >
+          <Video className="w-4 h-4" />
         </button>
       </div>
 

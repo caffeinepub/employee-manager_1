@@ -89,15 +89,13 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface Message {
-    content: string;
-    timestamp: bigint;
-    senderRole: MessageRole;
-}
-export interface UserProfile {
-    name: string;
-    email: string;
-}
+export type Result = {
+    __kind__: "ok";
+    ok: null;
+} | {
+    __kind__: "err";
+    err: string;
+};
 export interface ExtendedEmployeeProfile {
     name: string;
     isActive: boolean;
@@ -106,6 +104,27 @@ export interface ExtendedEmployeeProfile {
     phone: string;
     department: string;
     linkedPrincipal?: Principal;
+}
+export interface Message {
+    content: string;
+    timestamp: bigint;
+    senderRole: MessageRole;
+}
+export interface CallSignal {
+    status: CallStatus;
+    offer?: string;
+    answer?: string;
+    iceCandidates: Array<string>;
+}
+export interface UserProfile {
+    name: string;
+    email: string;
+}
+export enum CallStatus {
+    idle = "idle",
+    calling = "calling",
+    ended = "ended",
+    connected = "connected"
 }
 export enum MessageRole {
     admin = "admin",
@@ -118,23 +137,32 @@ export enum UserRole {
 }
 export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
+    addIceCandidateAdmin(toEmployeeId: bigint, candidate: string): Promise<void>;
+    addIceCandidateEmployee(candidate: string): Promise<void>;
     adminCreateEmployee(name: string, phone: string, jobTitle: string, department: string, loginId: string, password: string): Promise<bigint>;
+    answerVideoCall(sdpAnswer: string): Promise<Result>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    employeeInitiateVideoCall(sdpOffer: string): Promise<Result>;
     employeeLoginWithCredentials(loginId: string, password: string): Promise<ExtendedEmployeeProfile>;
+    endCallAdmin(employeeId: bigint): Promise<void>;
+    endCallEmployee(): Promise<void>;
     getAllEmployees(): Promise<Array<[bigint, ExtendedEmployeeProfile]>>;
+    getCallSignalForAdmin(employeeId: bigint): Promise<CallSignal | null>;
+    getCallSignalForEmployee(): Promise<CallSignal | null>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getEmployeeCredentials(employeeId: bigint): Promise<[string, string]>;
     getMessagesForAdmin(employeeId: bigint): Promise<Array<Message>>;
     getMessagesForEmployee(): Promise<Array<Message>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
+    initiateVideoCall(toEmployeeId: bigint, sdpOffer: string): Promise<Result>;
     isCallerAdmin(): Promise<boolean>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     sendMessage(toEmployeeId: bigint, content: string): Promise<void>;
     sendMessageToAdmin(content: string): Promise<void>;
     setEmployeeActiveStatus(employeeId: bigint, isActive: boolean): Promise<void>;
 }
-import type { ExtendedEmployeeProfile as _ExtendedEmployeeProfile, Message as _Message, MessageRole as _MessageRole, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
+import type { CallSignal as _CallSignal, CallStatus as _CallStatus, ExtendedEmployeeProfile as _ExtendedEmployeeProfile, Message as _Message, MessageRole as _MessageRole, Result as _Result, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
@@ -148,6 +176,34 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor._initializeAccessControlWithSecret(arg0);
+            return result;
+        }
+    }
+    async addIceCandidateAdmin(arg0: bigint, arg1: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addIceCandidateAdmin(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addIceCandidateAdmin(arg0, arg1);
+            return result;
+        }
+    }
+    async addIceCandidateEmployee(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addIceCandidateEmployee(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addIceCandidateEmployee(arg0);
             return result;
         }
     }
@@ -165,74 +221,158 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async answerVideoCall(arg0: string): Promise<Result> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.answerVideoCall(arg0);
+                return from_candid_Result_n1(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.answerVideoCall(arg0);
+            return from_candid_Result_n1(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async assignCallerUserRole(arg0: Principal, arg1: UserRole): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n1(this._uploadFile, this._downloadFile, arg1));
+                const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n3(this._uploadFile, this._downloadFile, arg1));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n1(this._uploadFile, this._downloadFile, arg1));
+            const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n3(this._uploadFile, this._downloadFile, arg1));
             return result;
+        }
+    }
+    async employeeInitiateVideoCall(arg0: string): Promise<Result> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.employeeInitiateVideoCall(arg0);
+                return from_candid_Result_n1(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.employeeInitiateVideoCall(arg0);
+            return from_candid_Result_n1(this._uploadFile, this._downloadFile, result);
         }
     }
     async employeeLoginWithCredentials(arg0: string, arg1: string): Promise<ExtendedEmployeeProfile> {
         if (this.processError) {
             try {
                 const result = await this.actor.employeeLoginWithCredentials(arg0, arg1);
-                return from_candid_ExtendedEmployeeProfile_n3(this._uploadFile, this._downloadFile, result);
+                return from_candid_ExtendedEmployeeProfile_n5(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.employeeLoginWithCredentials(arg0, arg1);
-            return from_candid_ExtendedEmployeeProfile_n3(this._uploadFile, this._downloadFile, result);
+            return from_candid_ExtendedEmployeeProfile_n5(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async endCallAdmin(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.endCallAdmin(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.endCallAdmin(arg0);
+            return result;
+        }
+    }
+    async endCallEmployee(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.endCallEmployee();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.endCallEmployee();
+            return result;
         }
     }
     async getAllEmployees(): Promise<Array<[bigint, ExtendedEmployeeProfile]>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getAllEmployees();
-                return from_candid_vec_n6(this._uploadFile, this._downloadFile, result);
+                return from_candid_vec_n8(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getAllEmployees();
-            return from_candid_vec_n6(this._uploadFile, this._downloadFile, result);
+            return from_candid_vec_n8(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getCallSignalForAdmin(arg0: bigint): Promise<CallSignal | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getCallSignalForAdmin(arg0);
+                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getCallSignalForAdmin(arg0);
+            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getCallSignalForEmployee(): Promise<CallSignal | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getCallSignalForEmployee();
+                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getCallSignalForEmployee();
+            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCallerUserProfile(): Promise<UserProfile | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserProfile();
-                return from_candid_opt_n8(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n16(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserProfile();
-            return from_candid_opt_n8(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n16(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCallerUserRole(): Promise<UserRole> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserRole();
-                return from_candid_UserRole_n9(this._uploadFile, this._downloadFile, result);
+                return from_candid_UserRole_n17(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserRole();
-            return from_candid_UserRole_n9(this._uploadFile, this._downloadFile, result);
+            return from_candid_UserRole_n17(this._uploadFile, this._downloadFile, result);
         }
     }
     async getEmployeeCredentials(arg0: bigint): Promise<[string, string]> {
@@ -259,42 +399,56 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.getMessagesForAdmin(arg0);
-                return from_candid_vec_n11(this._uploadFile, this._downloadFile, result);
+                return from_candid_vec_n19(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getMessagesForAdmin(arg0);
-            return from_candid_vec_n11(this._uploadFile, this._downloadFile, result);
+            return from_candid_vec_n19(this._uploadFile, this._downloadFile, result);
         }
     }
     async getMessagesForEmployee(): Promise<Array<Message>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getMessagesForEmployee();
-                return from_candid_vec_n11(this._uploadFile, this._downloadFile, result);
+                return from_candid_vec_n19(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getMessagesForEmployee();
-            return from_candid_vec_n11(this._uploadFile, this._downloadFile, result);
+            return from_candid_vec_n19(this._uploadFile, this._downloadFile, result);
         }
     }
     async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getUserProfile(arg0);
-                return from_candid_opt_n8(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n16(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getUserProfile(arg0);
-            return from_candid_opt_n8(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n16(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async initiateVideoCall(arg0: bigint, arg1: string): Promise<Result> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.initiateVideoCall(arg0, arg1);
+                return from_candid_Result_n1(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.initiateVideoCall(arg0, arg1);
+            return from_candid_Result_n1(this._uploadFile, this._downloadFile, result);
         }
     }
     async isCallerAdmin(): Promise<boolean> {
@@ -368,25 +522,58 @@ export class Backend implements backendInterface {
         }
     }
 }
-function from_candid_ExtendedEmployeeProfile_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ExtendedEmployeeProfile): ExtendedEmployeeProfile {
-    return from_candid_record_n4(_uploadFile, _downloadFile, value);
+function from_candid_CallSignal_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CallSignal): CallSignal {
+    return from_candid_record_n12(_uploadFile, _downloadFile, value);
 }
-function from_candid_MessageRole_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _MessageRole): MessageRole {
-    return from_candid_variant_n15(_uploadFile, _downloadFile, value);
+function from_candid_CallStatus_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CallStatus): CallStatus {
+    return from_candid_variant_n14(_uploadFile, _downloadFile, value);
 }
-function from_candid_Message_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Message): Message {
-    return from_candid_record_n13(_uploadFile, _downloadFile, value);
+function from_candid_ExtendedEmployeeProfile_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ExtendedEmployeeProfile): ExtendedEmployeeProfile {
+    return from_candid_record_n6(_uploadFile, _downloadFile, value);
 }
-function from_candid_UserRole_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
-    return from_candid_variant_n10(_uploadFile, _downloadFile, value);
+function from_candid_MessageRole_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _MessageRole): MessageRole {
+    return from_candid_variant_n23(_uploadFile, _downloadFile, value);
 }
-function from_candid_opt_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [Principal]): Principal | null {
+function from_candid_Message_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Message): Message {
+    return from_candid_record_n21(_uploadFile, _downloadFile, value);
+}
+function from_candid_Result_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Result): Result {
+    return from_candid_variant_n2(_uploadFile, _downloadFile, value);
+}
+function from_candid_UserRole_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
+    return from_candid_variant_n18(_uploadFile, _downloadFile, value);
+}
+function from_candid_opt_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_CallSignal]): CallSignal | null {
+    return value.length === 0 ? null : from_candid_CallSignal_n11(_uploadFile, _downloadFile, value[0]);
+}
+function from_candid_opt_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
+function from_candid_opt_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_record_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_opt_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [Principal]): Principal | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_record_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    status: _CallStatus;
+    offer: [] | [string];
+    answer: [] | [string];
+    iceCandidates: Array<string>;
+}): {
+    status: CallStatus;
+    offer?: string;
+    answer?: string;
+    iceCandidates: Array<string>;
+} {
+    return {
+        status: from_candid_CallStatus_n13(_uploadFile, _downloadFile, value.status),
+        offer: record_opt_to_undefined(from_candid_opt_n15(_uploadFile, _downloadFile, value.offer)),
+        answer: record_opt_to_undefined(from_candid_opt_n15(_uploadFile, _downloadFile, value.answer)),
+        iceCandidates: value.iceCandidates
+    };
+}
+function from_candid_record_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     content: string;
     timestamp: bigint;
     senderRole: _MessageRole;
@@ -398,10 +585,10 @@ function from_candid_record_n13(_uploadFile: (file: ExternalBlob) => Promise<Uin
     return {
         content: value.content,
         timestamp: value.timestamp,
-        senderRole: from_candid_MessageRole_n14(_uploadFile, _downloadFile, value.senderRole)
+        senderRole: from_candid_MessageRole_n22(_uploadFile, _downloadFile, value.senderRole)
     };
 }
-function from_candid_record_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_record_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     name: string;
     isActive: boolean;
     loginId: string;
@@ -425,16 +612,27 @@ function from_candid_record_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint
         jobTitle: value.jobTitle,
         phone: value.phone,
         department: value.department,
-        linkedPrincipal: record_opt_to_undefined(from_candid_opt_n5(_uploadFile, _downloadFile, value.linkedPrincipal))
+        linkedPrincipal: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.linkedPrincipal))
     };
 }
-function from_candid_tuple_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [bigint, _ExtendedEmployeeProfile]): [bigint, ExtendedEmployeeProfile] {
+function from_candid_tuple_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [bigint, _ExtendedEmployeeProfile]): [bigint, ExtendedEmployeeProfile] {
     return [
         value[0],
-        from_candid_ExtendedEmployeeProfile_n3(_uploadFile, _downloadFile, value[1])
+        from_candid_ExtendedEmployeeProfile_n5(_uploadFile, _downloadFile, value[1])
     ];
 }
-function from_candid_variant_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    idle: null;
+} | {
+    calling: null;
+} | {
+    ended: null;
+} | {
+    connected: null;
+}): CallStatus {
+    return "idle" in value ? CallStatus.idle : "calling" in value ? CallStatus.calling : "ended" in value ? CallStatus.ended : "connected" in value ? CallStatus.connected : value;
+}
+function from_candid_variant_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     admin: null;
 } | {
     user: null;
@@ -443,23 +641,42 @@ function from_candid_variant_n10(_uploadFile: (file: ExternalBlob) => Promise<Ui
 }): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
 }
-function from_candid_variant_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    ok: null;
+} | {
+    err: string;
+}): {
+    __kind__: "ok";
+    ok: null;
+} | {
+    __kind__: "err";
+    err: string;
+} {
+    return "ok" in value ? {
+        __kind__: "ok",
+        ok: value.ok
+    } : "err" in value ? {
+        __kind__: "err",
+        err: value.err
+    } : value;
+}
+function from_candid_variant_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     admin: null;
 } | {
     employee: null;
 }): MessageRole {
     return "admin" in value ? MessageRole.admin : "employee" in value ? MessageRole.employee : value;
 }
-function from_candid_vec_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_Message>): Array<Message> {
-    return value.map((x)=>from_candid_Message_n12(_uploadFile, _downloadFile, x));
+function from_candid_vec_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_Message>): Array<Message> {
+    return value.map((x)=>from_candid_Message_n20(_uploadFile, _downloadFile, x));
 }
-function from_candid_vec_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<[bigint, _ExtendedEmployeeProfile]>): Array<[bigint, ExtendedEmployeeProfile]> {
-    return value.map((x)=>from_candid_tuple_n7(_uploadFile, _downloadFile, x));
+function from_candid_vec_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<[bigint, _ExtendedEmployeeProfile]>): Array<[bigint, ExtendedEmployeeProfile]> {
+    return value.map((x)=>from_candid_tuple_n9(_uploadFile, _downloadFile, x));
 }
-function to_candid_UserRole_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
-    return to_candid_variant_n2(_uploadFile, _downloadFile, value);
+function to_candid_UserRole_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
+    return to_candid_variant_n4(_uploadFile, _downloadFile, value);
 }
-function to_candid_variant_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): {
+function to_candid_variant_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): {
     admin: null;
 } | {
     user: null;

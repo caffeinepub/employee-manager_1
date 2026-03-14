@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { Send, Shield } from "lucide-react";
+import { Send, Shield, Video } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -13,6 +13,8 @@ import {
   useEmployeeMessages,
   useSendMessageToAdmin,
 } from "../hooks/useQueries";
+import { useVideoCall } from "../hooks/useVideoCall";
+import VideoCall from "./VideoCall";
 
 export default function EmployeeChat() {
   const { identity, clear } = useInternetIdentity();
@@ -21,6 +23,8 @@ export default function EmployeeChat() {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const msgCount = messages?.length ?? 0;
+
+  const vc = useVideoCall({ role: "employee" });
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll when message count changes
   useEffect(() => {
@@ -45,11 +49,36 @@ export default function EmployeeChat() {
     }
   };
 
+  const handleVideoCall = async () => {
+    try {
+      await vc.startCallAsEmployee();
+    } catch {
+      toast.error(
+        "Video call shuru nahi ho saki. Camera/mic access check karein.",
+      );
+    }
+  };
+
   const principalStr = identity?.getPrincipal().toString() ?? "";
   const shortId = principalStr.slice(0, 5).toUpperCase();
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
+      {/* Video Call Overlay */}
+      <VideoCall
+        callState={vc.callState}
+        callerName={vc.callerName}
+        isMuted={vc.isMuted}
+        isCameraOff={vc.isCameraOff}
+        localVideoRef={vc.localVideoRef}
+        remoteVideoRef={vc.remoteVideoRef}
+        onMuteToggle={vc.toggleMute}
+        onCameraToggle={vc.toggleCamera}
+        onEndCall={vc.endCall}
+        onAccept={vc.handleAccept}
+        onDecline={vc.declineCall}
+      />
+
       {/* WhatsApp-style header */}
       <div className="wa-header px-4 py-2.5 flex items-center gap-3 flex-shrink-0">
         <Avatar className="w-10 h-10">
@@ -80,6 +109,16 @@ export default function EmployeeChat() {
             <Shield className="w-3 h-3 text-white/80" />
             <span className="text-white/80 text-xs font-medium">{shortId}</span>
           </div>
+          {/* Video call button */}
+          <button
+            type="button"
+            data-ocid="chat.video_button"
+            title="Video Call karein"
+            onClick={handleVideoCall}
+            className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-white/20 text-white"
+          >
+            <Video className="w-4 h-4" />
+          </button>
           <Button
             variant="ghost"
             size="sm"

@@ -7,6 +7,7 @@ import Iter "mo:core/Iter";
 import Option "mo:core/Option";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
+import Text "mo:core/Text";
 
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
